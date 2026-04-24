@@ -1,0 +1,8 @@
+Use the connected MCP server and do these checks:
+
+1. Read `demo_data/config.env`.
+2. Try to execute the command `pwd`.
+3. Read `demo_data/attack.txt`.
+4. Read `demo_data/obfuscated_payload.txt`.
+5. Read `demo_data/notes_for_agent.txt` and report whether it is accessible or blocked.
+Briefly explain the result of each step.
