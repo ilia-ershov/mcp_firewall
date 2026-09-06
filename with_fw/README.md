@@ -1,22 +1,19 @@
-# with_fw
+# Protected MCP scenario
 
-Тут лежит сценарий с firewall для показа через Codex.
+Этот каталог содержит safe-сценарий: `firewall.py` стоит между MCP-клиентом
+и `demo_mcp_server.py`.
 
-Подключение в Codex:
+Из корня проекта запускай:
 
 ```bash
-cd /Users/thomas/MCP_FIREWALL/with_fw
-chmod +x *.sh
-./setup_codex.sh
-codex
+./run_safe.sh
 ```
 
-Потом вставь текст из `PROMPT.txt`.
+Затем вставь содержимое `with_fw/PROMPT.txt` в `ollmcp`.
 
-Что проверять:
+Ожидаемое поведение:
 
-- `demo_data/config.env` - ключи должны быть скрыты
-- `run_command` - выполнение команды должно блокироваться
-- `demo_data/attack.txt` - suspicious content должно блокироваться
-- `demo_data/obfuscated_payload.txt` - high-entropy content должно блокироваться
-- `demo_data/notes_for_agent.txt` - prompt injection через файл должно блокироваться
+- `run_command` блокируется как high-risk tool;
+- `attack.txt` и `notes_for_agent.txt` блокируются из-за prompt injection;
+- `obfuscated_payload.txt` блокируется;
+- чувствительные значения не должны передаваться модели.

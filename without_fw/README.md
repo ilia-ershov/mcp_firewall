@@ -1,22 +1,15 @@
-# without_fw
+# Unprotected MCP scenario
 
-Тут лежит сценарий без firewall для показа через Codex.
+Этот каталог содержит unsafe-сценарий: MCP-клиент подключается к backend
+серверу напрямую, без фильтрации ответов.
 
-Подключение в Codex:
+Из корня проекта запускай:
 
 ```bash
-cd /Users/thomas/MCP_FIREWALL/without_fw
-chmod +x *.sh
-./setup_codex.sh
-codex
+./run_unsafe.sh
 ```
 
-Потом вставь текст из `PROMPT.txt`.
+Затем вставь содержимое `without_fw/PROMPT.txt` в `ollmcp`.
 
-Что проверять:
-
-- `demo_data/config.env` - ключи видны
-- `run_command` - выполнение команды разрешено
-- `demo_data/attack.txt` - suspicious content читается
-- `demo_data/obfuscated_payload.txt` - obfuscated data читается
-- `demo_data/notes_for_agent.txt` - prompt injection через файл читается
+В этом режиме демонстрационные секреты, prompt injection и obfuscated payload
+возвращаются клиенту без firewall-проверки.
