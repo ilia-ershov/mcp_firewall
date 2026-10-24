@@ -2,4 +2,4 @@
 set -euo pipefail
 DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "${DIR}/.." && pwd)"
-exec python3 "${DIR}/firewall.py" python3 "${ROOT}/demo_mcp_server.py" "${DIR}"
+exec python3 "${ROOT}/firewall.py" python3 "${ROOT}/demo_mcp_server.py" "${DIR}"

@@ -77,7 +77,7 @@ escaping the allowed directory.
 
 ### Firewall proxy
 
-[`with_fw/firewall.py`](with_fw/firewall.py) starts the backend as a child
+[`firewall.py`](firewall.py) starts the backend as a child
 process and proxies the JSON-RPC stream between the client and server.
 
 The proxy:
@@ -195,7 +195,7 @@ targeted checks appropriate for a protocol demonstration:
 
 ```bash
 zsh -n run_unsafe.sh run_safe.sh with_fw/run.sh without_fw/run.sh
-python3 -m py_compile demo_mcp_server.py with_fw/firewall.py run_demo.py
+python3 -m py_compile demo_mcp_server.py firewall.py run_demo.py
 python3 run_demo.py --mode both
 ```
 
@@ -203,6 +203,7 @@ python3 run_demo.py --mode both
 
 ```text
 demo_mcp_server.py  Minimal backend MCP server
+firewall.py         JSON-RPC proxy and security filters
 run_demo.py         Protocol-only regression harness
 run_unsafe.sh       Ollama + ollmcp without the firewall
 run_safe.sh         Ollama + ollmcp through the firewall
@@ -213,7 +214,6 @@ without_fw/
   demo_data/        Threat demonstration files
 
 with_fw/
-  firewall.py       JSON-RPC proxy and security filters
   run.sh            Firewall + backend launcher
   PROMPT.txt        Safe scenario prompt
   demo_data/        Matching threat demonstration files

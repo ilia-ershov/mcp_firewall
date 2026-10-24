@@ -17,7 +17,7 @@ There is no formal build, test, or lint suite in this repo.
 Use the minimal validation that matches the project:
 
 - Syntax check the Python entry points:
-  - `python3 -m py_compile demo_mcp_server.py with_fw/firewall.py`
+  - `python3 -m py_compile demo_mcp_server.py firewall.py`
 
 Run the demonstration flows:
 
@@ -44,7 +44,7 @@ Direct, protocol-only entry points:
   - `list_allowed_directories`
 - The server is intentionally small and path-scoped: it accepts an `allowed_root` directory and blocks access outside it via `os.path.realpath` + `os.path.commonpath`.
 - `run_command` is restricted to a small allowlist (`pwd`, `ls`, `echo`) and runs commands with `subprocess.run` under the allowed root.
-- `with_fw/firewall.py` is a proxy layer placed in front of the backend server. It reads incoming JSON-RPC messages, captures the tool registry from `tools/list`, and screens tool responses before they reach the client.
+- `firewall.py` is a proxy layer placed in front of the backend server. It reads incoming JSON-RPC messages, captures the tool registry from `tools/list`, and screens tool responses before they reach the client.
 - The firewall enforces a few deterministic rules:
   - denies high-risk tool execution before it reaches the backend
   - detects prompt-injection phrases such as “ignore previous instructions” or “system prompt”
@@ -56,7 +56,7 @@ Direct, protocol-only entry points:
 ## Key conventions
 
 - Keep protocol behavior aligned with the JSON-RPC MCP pattern used in `demo_mcp_server.py`; do not add a second transport or wrapper unless the repo specifically needs it.
-- When changing tool names or descriptions, keep the firewall’s risk classification in sync with `TOOL_RISK_KEYWORDS` and the registry logic in `with_fw/firewall.py`.
+- When changing tool names or descriptions, keep the firewall’s risk classification in sync with `TOOL_RISK_KEYWORDS` and the registry logic in `firewall.py`.
 - Security checks are intentionally regex-based and deterministic. Do not replace them with broad AI-style heuristics when a rule is already present.
 - Path safety is a first-class concern: any new file-access logic should resolve real paths and enforce the allowed-root boundary.
 - The important validation cases are the demo files in `demo_data/`:

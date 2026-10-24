@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parent
 UNSAFE_DIR = ROOT / "without_fw"
 SAFE_DIR = ROOT / "with_fw"
 SERVER_PATH = ROOT / "demo_mcp_server.py"
-FIREWALL_PATH = SAFE_DIR / "firewall.py"
+FIREWALL_PATH = ROOT / "firewall.py"
 
 
 def build_server_command(mode: str, demo_dir: Path) -> list[str]:
