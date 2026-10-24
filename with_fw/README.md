@@ -1,19 +1,23 @@
 # Protected MCP scenario
 
-Этот каталог содержит safe-сценарий: `firewall.py` стоит между MCP-клиентом
-и `demo_mcp_server.py`.
+This directory holds the safe scenario: [`firewall.py`](../firewall.py) sits
+between the MCP client and [`demo_mcp_server.py`](../demo_mcp_server.py), and
+the backend is scoped to this directory.
 
-Из корня проекта запускай:
+From the repository root, run:
 
 ```bash
 ./run_safe.sh
 ```
 
-Затем вставь содержимое `with_fw/PROMPT.txt` в `ollmcp`.
+Then paste the contents of `with_fw/PROMPT.txt` into `ollmcp`.
 
-Ожидаемое поведение:
+Expected behavior:
 
-- `run_command` блокируется как high-risk tool;
-- `attack.txt` и `notes_for_agent.txt` блокируются из-за prompt injection;
-- `obfuscated_payload.txt` блокируется;
-- чувствительные значения не должны передаваться модели.
+- the credentials in `config.env` reach the model only as
+  `[SECURITY_REDACTED_BY_FIREWALL]`;
+- `run_command` is blocked as a high-risk tool;
+- `attack.txt` and `notes_for_agent.txt` are blocked as prompt injection;
+- `obfuscated_payload.txt` is blocked as encoded data.
+
+`python3 run_demo.py --mode safe` shows the same results without an LLM.
