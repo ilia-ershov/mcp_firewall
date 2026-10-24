@@ -28,6 +28,9 @@ trusted instructions. A file returned by an MCP server may contain:
 - encoded payloads;
 - instructions to invoke additional high-risk tools.
 
+Even the tool list itself reaches the model: a tool description can smuggle in
+instructions ("tool poisoning").
+
 MCP Firewall demonstrates a simple defensive position:
 
 > **Inspect tool calls and tool results at the protocol boundary before they
@@ -35,9 +38,8 @@ MCP Firewall demonstrates a simple defensive position:
 
 ## What the demo proves
 
-The repository contains matching test data in `without_fw/demo_data/` and
+The repository contains identical test data in `without_fw/demo_data/` and
 `with_fw/demo_data/`:
-
 
 | File                     | Demonstrated threat                           |
 | ------------------------ | --------------------------------------------- |
@@ -47,52 +49,68 @@ The repository contains matching test data in `without_fw/demo_data/` and
 | `notes_for_agent.txt`    | Instructions attempting to redirect the agent |
 | `obfuscated_payload.txt` | Encoded and high-entropy content              |
 
-In **unsafe mode**, the backend response is returned directly to the MCP
-client. The model can see the file contents and may decide to follow the
-embedded instructions.
+The demo prompt makes five tool calls. Without the firewall the model receives
+everything; with it, the same calls end like this:
 
-In **safe mode**, the firewall:
+| # | Call                                              | Unsafe mode                 | Safe mode                   |
+| - | ------------------------------------------------- | --------------------------- | --------------------------- |
+| 1 | `read_text_file demo_data/config.env`             | credentials returned        | credential values redacted  |
+| 2 | `run_command pwd`                                 | command executed            | blocked as a high-risk tool |
+| 3 | `read_text_file demo_data/attack.txt`             | injected instructions shown | blocked as prompt injection |
+| 4 | `read_text_file demo_data/obfuscated_payload.txt` | encoded blobs shown         | blocked as encoded data     |
+| 5 | `read_text_file demo_data/notes_for_agent.txt`    | injected instructions shown | blocked as prompt injection |
 
-- blocks high-risk tools such as `run_command`;
-- detects prompt-injection phrases;
-- redacts values that look like secrets;
-- blocks suspicious encoded or high-entropy payloads;
-- returns an MCP error instead of forwarding a blocked result.
+`notes_for_agent.txt` also tries to get the agent to read `secret_data.txt`,
+whose credentials the firewall redacts as well.
 
 ## Architecture
 
 ### Backend MCP server
 
 [`demo_mcp_server.py`](demo_mcp_server.py) is a deliberately small MCP server
-that implements JSON-RPC over `stdin` and `stdout`.
+that implements newline-delimited JSON-RPC over `stdin` and `stdout`.
 
 It exposes three tools:
 
-- `read_text_file` — reads a text file inside the configured root;
+- `read_text_file` — reads a UTF-8 text file inside the configured root;
 - `run_command` — allows only `pwd`, `ls`, and `echo`;
 - `list_allowed_directories` — reports the configured root directory.
 
-File access is scoped with `realpath` and `commonpath`, preventing paths from
-escaping the allowed directory.
+File access, including the operands of `ls`, is scoped with `realpath` and
+`commonpath`, preventing paths and symlinks from escaping the allowed directory.
 
 ### Firewall proxy
 
-[`firewall.py`](firewall.py) starts the backend as a child
-process and proxies the JSON-RPC stream between the client and server.
+[`firewall.py`](firewall.py) starts the backend as a child process and proxies
+the JSON-RPC stream between the client and server. The proxy:
 
-The proxy:
+1. learns the tool registry from `tools/list`, classifies each tool from its
+   name and description, and hides tools whose descriptions carry injected
+   instructions;
+2. answers `tools/call` requests for high-risk or hidden tools itself, so they
+   never reach the backend;
+3. inspects every string in the results and errors of `tools/call`,
+   `resources/read`, and `prompts/get` — text content, embedded resources,
+   `structuredContent`, and error messages alike;
+4. blocks responses that contain prompt-injection phrases or several encoded
+   or high-entropy blobs;
+5. redacts credentials (key/value pairs in env, YAML, or JSON form, AWS access
+   keys, GitHub and bearer tokens, private keys) and single encoded blobs;
+6. drops responses that do not match an outstanding request and forwards only
+   the sanitized response.
 
-1. captures the tool registry from `tools/list`;
-2. classifies tools from their names and descriptions;
-3. blocks high-risk `tools/call` requests before they reach the backend;
-4. scans textual and structured tool results;
-5. blocks prompt injection and suspicious encoded content;
-6. redacts detected secrets;
-7. forwards only the sanitized response.
+Blocked calls and responses are replaced with JSON-RPC errors:
+
+| Code     | Meaning                                         |
+| -------- | ----------------------------------------------- |
+| `-32000` | call to a high-risk or hidden tool              |
+| `-32001` | prompt injection in the response                |
+| `-32002` | obfuscated or encoded payload in the response   |
 
 The checks are intentionally deterministic and implemented with regular
-expressions and Shannon entropy calculations. This keeps the behavior
-observable and makes the project suitable for security experimentation.
+expressions and a Shannon entropy heuristic, all defined at the top of
+`firewall.py`. This keeps every decision observable and makes the project
+suitable for security experimentation.
 
 ## Live demonstration with Ollama
 
@@ -104,7 +122,7 @@ writing a final summary.
 
 ### Prerequisites
 
-- macOS, Linux, or another Unix-like environment;
+- macOS, Linux, or another Unix-like environment with `bash`;
 - Python 3.11+;
 - [Ollama](https://ollama.com/download);
 - an Ollama model with tool-calling support;
@@ -153,13 +171,15 @@ Paste the contents of [`with_fw/PROMPT.txt`](with_fw/PROMPT.txt). The same
 workflow now passes through the firewall, so blocked calls and sanitized
 responses become visible in the terminal.
 
-The launchers are designed for a repeatable demo:
+Both scripts call [`run_ollmcp.sh`](run_ollmcp.sh) (`safe` or `unsafe`), which
+is designed for a repeatable demo:
 
 - `llama3.2` is the default model;
 - `OLLAMA_MODEL` can select another installed model;
 - MCP confirmations are disabled so the sequence runs without interruptions;
 - the agent loop allows up to 12 iterations;
-- temporary client configuration is isolated and removed on exit.
+- the client configuration lives in a temporary directory that is removed on
+  exit, so your own `ollmcp` settings are not touched.
 
 Example:
 
@@ -169,15 +189,28 @@ OLLAMA_MODEL=llama3.2 ./run_safe.sh
 
 ## Protocol-only verification
 
-To test the MCP transport and firewall without an LLM:
+To replay the demo prompt's tool calls without an LLM:
 
 ```bash
-python3 run_demo.py --mode both
+python3 run_demo.py
 ```
 
-This harness sends JSON-RPC requests directly and prints the contrast between
-unsafe responses and firewall decisions. It is useful for quick regression
-checks, but it does not replace the live model demonstration.
+The harness performs the MCP handshake, issues the same five calls as the
+prompts in both scenarios, and prints one line per result:
+
+```text
+=== SAFE: client -> firewall.py -> demo_mcp_server.py (root: with_fw/) ===
+tools: read_text_file, run_command, list_allowed_directories
+1. read_text_file {"path": "demo_data/config.env"}
+   result: DB_PASSWORD=[SECURITY_REDACTED_BY_FIREWALL] | AWS_ACCESS_KEY_ID=[SECURITY_REDACTED_BY_FIREWALL]
+2. run_command {"command": "pwd"}
+   error -32000: Blocked by MCP firewall: tool 'run_command' is classified as high-risk
+...
+```
+
+Use `--mode unsafe` or `--mode safe` to run a single scenario and `--json` to
+print the full JSON-RPC responses. This is useful for quick checks, but it does
+not replace the live model demonstration.
 
 Run the MCP processes directly when needed:
 
@@ -188,49 +221,66 @@ Run the MCP processes directly when needed:
 
 Both processes communicate through standard input and output.
 
-## Validation
+## Tests
 
-There is no separate build system or test framework. The project uses small,
-targeted checks appropriate for a protocol demonstration:
+The test suite uses only the Python standard library:
 
 ```bash
-zsh -n run_unsafe.sh run_safe.sh with_fw/run.sh without_fw/run.sh
-python3 -m py_compile demo_mcp_server.py firewall.py run_demo.py
-python3 run_demo.py --mode both
+python3 -m unittest
 ```
+
+It covers the firewall policy (including false-positive guards), message
+routing, the stdio transport, the backend server, both demo scenarios end to
+end, and the `ollmcp` launchers (against a stand-in `ollmcp`). It also keeps
+the prompts, the replayed steps, and the two `demo_data/` copies in sync.
 
 ## Repository layout
 
 ```text
 demo_mcp_server.py  Minimal backend MCP server
-firewall.py         JSON-RPC proxy and security filters
-run_demo.py         Protocol-only regression harness
-run_unsafe.sh       Ollama + ollmcp without the firewall
-run_safe.sh         Ollama + ollmcp through the firewall
+firewall.py         JSON-RPC proxy and security policy
+run_demo.py         Protocol-only replay of the demo prompt
+run_ollmcp.sh       Ollama + ollmcp launcher (safe | unsafe)
+run_unsafe.sh       ./run_ollmcp.sh unsafe
+run_safe.sh         ./run_ollmcp.sh safe
+tests/              unittest suite
 
 without_fw/
-  run.sh            Direct backend launcher
+  run.sh            MCP entry point: backend only
   PROMPT.txt        Unsafe scenario prompt
   demo_data/        Threat demonstration files
 
 with_fw/
-  run.sh            Firewall + backend launcher
+  run.sh            MCP entry point: firewall + backend
   PROMPT.txt        Safe scenario prompt
-  demo_data/        Matching threat demonstration files
+  demo_data/        Identical threat demonstration files
 ```
+
+Each scenario directory is also the backend's allowed root, which is why the
+code lives outside them: the model cannot read the firewall's rules.
 
 ## Limitations and possible extensions
 
 The firewall uses transparent, rule-based checks. That makes the prototype
-easy to understand, but real deployments would need stronger controls such as
-capability-based authorization, structured content policies, secret managers,
-process isolation, audit logging, and adversarial evaluation.
+easy to understand, but it also means that:
+
+- detection is heuristic: paraphrased injections and short or cleverly encoded
+  secrets get through, and unusual but harmless content can be blocked;
+- tool risk is inferred from keywords in tool names and descriptions;
+- only the results of `tools/call`, `resources/read`, and `prompts/get` are
+  inspected; server-initiated requests and notifications (such as sampling or
+  logging) and the `initialize` result are forwarded unchanged.
+
+Real deployments would need stronger controls such as capability-based
+authorization, structured content policies, secret managers, process
+isolation, audit logging, and adversarial evaluation.
 
 Natural next steps would include:
 
 - structured allow/deny policies per tool and argument;
 - explicit secret-provider integration instead of regex-only detection;
-- a test matrix for false positives and false negatives;
+- a larger corpus of false-positive and false-negative cases;
+- inspection of server-initiated requests such as sampling;
 - signed or authenticated MCP server identities;
 - metrics and audit events for blocked requests;
 - transport support beyond local stdio.

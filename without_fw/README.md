@@ -1,15 +1,18 @@
 # Unprotected MCP scenario
 
-Этот каталог содержит unsafe-сценарий: MCP-клиент подключается к backend
-серверу напрямую, без фильтрации ответов.
+This directory holds the unsafe scenario: the MCP client talks to
+[`demo_mcp_server.py`](../demo_mcp_server.py) directly, without any filtering
+of responses. The backend is scoped to this directory.
 
-Из корня проекта запускай:
+From the repository root, run:
 
 ```bash
 ./run_unsafe.sh
 ```
 
-Затем вставь содержимое `without_fw/PROMPT.txt` в `ollmcp`.
+Then paste the contents of `without_fw/PROMPT.txt` into `ollmcp`.
 
-В этом режиме демонстрационные секреты, prompt injection и obfuscated payload
-возвращаются клиенту без firewall-проверки.
+In this mode the demo credentials, the prompt injections, and the obfuscated
+payload all reach the model unfiltered, and `run_command` executes.
+
+`python3 run_demo.py --mode unsafe` shows the same results without an LLM.
