@@ -287,4 +287,4 @@ Natural next steps would include:
 
 ## License
 
-This repository is intended as a personal educational and portfolio project.
+MIT — see [LICENSE](LICENSE). A personal educational and portfolio project.
